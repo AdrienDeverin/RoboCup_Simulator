@@ -10,7 +10,7 @@ ball = BALL(pos = np.array([1.0, 1.0]),
             velocity= np.array([initial_speed * np.cos(angle_rad), initial_speed * np.sin(angle_rad)], dtype=float), 
             iscatch=False)
 
-ball2 = BALL(pos = np.array([15.0, 12.0]), 
+ball2 = BALL(pos = np.array([10.0, 12.0]), 
             velocity= np.array([0,0], dtype=float), 
             iscatch=False)
 
@@ -122,7 +122,7 @@ def simulate_ball_trajectory(ball, robots_ennemi, robots_allie, time_step_ms=50,
                
 
 
-                robot.update_vel_pos_tocatchball(ball.pos, ball.velocity, dt)
+                robot.update_vel_pos_tocatchball_1(ball.pos, ball.velocity, dt)
                 # potentiel collision -> nouvelle position balle
 
                 # Orientation normal robot : Tout les robots s'orientent vers la balle 
@@ -210,7 +210,7 @@ def simulate_ball_trajectory(ball, robots_ennemi, robots_allie, time_step_ms=50,
 
 
 simulate_ball_trajectory(ball = ball2, 
-                        robots_ennemi=[robot_E1, robot_E2],
+                        robots_ennemi=[robot_E1],
                         robots_allie=[robot_A1],
                         time_step_ms= 50,
                         time_step_affichage_ms= 200)

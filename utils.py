@@ -78,14 +78,17 @@ def Affichage_Historique(trajectory_ball, speeds_ball,
     for i, vel in ennemis_velocity_records.items():
         pos = ennemis_trajectories[i][::time_step_affichage_ms // time_step_ms] 
         pos.append(ennemis_trajectories[i][-1])
+        delta_x = 0.3
         for j in range(len(vel)):
             plt.quiver(pos[j][0], pos[j][1], vel[j][0] / 2, vel[j][1] / 2, angles='xy', scale_units='xy', scale=2, color="purple", width=0.003, zorder= 3) # Ajout des vecteurs vitesse en flèche
-            plt.text(pos[j][0] + 0.3, pos[j][1] + 0.1, f"{np.linalg.norm(vel[j]):.2f} m/s", fontsize=8, color="orange", zorder=4) # Ajoute vitesse en texte
+            plt.text(pos[j][0] + delta_x, pos[j][1] - 0.1, f"{np.linalg.norm(vel[j]):.2f} m/s", fontsize=8, color="orange", zorder=4) # Ajoute vitesse en texte
             x, y = pos[j][0], pos[j][1] # dessine la position intermédiaire
             rect = Rectangle((x - ROBOTS_RADIUS / 2 , y - ROBOTS_RADIUS / 2 ), ROBOTS_RADIUS, ROBOTS_RADIUS , color="red", fill=True, zorder=2)
             t = transforms.Affine2D().rotate_deg_around(x, y, np.degrees(np.arctan2(ennemis_direction[i][j][1], ennemis_direction[i][j][0]))) + plt.gca().transData
             rect.set_transform(t)
             plt.gca().add_patch(rect)
+            if(delta_x > 0): delta_x = -0.9
+            else : delta_x = 0.3
 
      ## ALLIES ##
     for i, traj in allies_trajectories.items():

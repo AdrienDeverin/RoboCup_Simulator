@@ -48,7 +48,7 @@ class ROBOT():
             return
         
         # Direction désirée : 
-        dir_to_ball = p_ball - self.pos 
+        dir_to_ball = p_ball - self.pos
         dist_to_ball = np.linalg.norm(dir_to_ball) 
         if dist_to_ball > 0:
             dir_to_ball = dir_to_ball / dist_to_ball
@@ -95,51 +95,34 @@ class ROBOT():
             new_dir_y = dir_agent[0] * sin_a + dir_agent[1] * cos_a
             dir_agent_new = np.array([new_dir_x, new_dir_y])
 
-            # Calcul vitesse # Angle n'a pas d'impact -> on accèlere si possible
-            if (speed_agent+max_accel > speed_target): 
-                distance_to_stop = (speed_agent*speed_agent - speed_target*speed_target)/(2*DECELERATION_RATE) + ROBOTS_RADIUS + BALL_RADIUS # ditance à cette vitesse
-                if (distance_to_stop >= dist_to_ball ) : #ON va trop vite -> freine 
-                    speed_new = max(speed_agent - max_decel, speed_target)
-                else : 
-                    d_supp = (2*speed_agent*max_accel + max_accel*max_accel)/(2*DECELERATION_RATE)
-                    if ((distance_to_stop+ d_supp) > dist_to_ball):
-                        # maintiend vitesse courante
-                        speed_new = speed_agent
-                    else :
-                        # accel
-                        speed_new = min(speed_agent + max_accel, ROBOTS_MAX_SPEED)
-            else :
-                distance_to_stop = ((speed_agent + max_accel)*(speed_agent + max_accel) - speed_target*speed_target)/(2*DECELERATION_RATE) + ROBOTS_RADIUS + BALL_RADIUS 
-                if (distance_to_stop >= dist_to_ball ) : # On accelère 
-                    speed_new = min(speed_agent + max_accel, ROBOTS_MAX_SPEED)
-                else : 
-                    speed_new = speed_target
             
         else:
             dir_agent_new = dir_to_ball # On peut s'orienter directement vers dir_des
 
-            # Calcul vitesse 
-            if (speed_agent+max_accel > speed_target): 
-                distance_to_stop = (speed_agent*speed_agent - speed_target*speed_target)/(2*DECELERATION_RATE) + ROBOTS_RADIUS + BALL_RADIUS  # ditance à cette vitesse
-                if (distance_to_stop >= dist_to_ball ) : #ON va trop vite -> freine 
-                    speed_new = max(speed_agent - max_decel, speed_target)
-                else : 
-                    d_supp = (2*speed_agent*max_accel + max_accel*max_accel)/(2*DECELERATION_RATE)
-                    if ((distance_to_stop+ d_supp) > dist_to_ball):
-                        # maintiend vitesse courante
-                        speed_new = speed_agent
-                    else :
-                        # accel
-                        speed_new = min(speed_agent + max_accel, ROBOTS_MAX_SPEED)
-            else :
-                distance_to_stop = ((speed_agent + max_accel)*(speed_agent + max_accel) - speed_target*speed_target)/(2*DECELERATION_RATE) + ROBOTS_RADIUS + BALL_RADIUS 
-                if (distance_to_stop >= dist_to_ball ) : # On accelère 
+         
+        # Calcul vitesse # Angle n'a pas d'impact -> on accèlere si possible
+        dir_to_ball = p_ball - (self.pos + dir_agent*speed_agent*dt) 
+        dist_to_ball = np.linalg.norm(dir_to_ball) # distance à t+1 si on maintien la speed
+        epsilon = 0.03 # volume catch ball (évite d'osciller lorsque très proche de la cible) 3cm
+
+        if (speed_agent+max_accel > speed_target): 
+            distance_to_stop = (speed_agent*speed_agent - speed_target*speed_target)/(2*DECELERATION_RATE) + ROBOTS_RADIUS + BALL_RADIUS - epsilon # ditance à cette vitesse
+            if (distance_to_stop >= dist_to_ball ) : #ON va trop vite -> freine 
+                speed_new = max(speed_agent - max_decel, speed_target)
+            else : 
+                d_supp = (2*speed_agent*max_accel + max_accel*max_accel)/(2*DECELERATION_RATE)
+                if ((distance_to_stop+ d_supp) > dist_to_ball):
+                    # maintiend vitesse courante
+                    speed_new = speed_agent
+                else :
+                    # accel
                     speed_new = min(speed_agent + max_accel, ROBOTS_MAX_SPEED)
-                else : 
-                    speed_new = speed_target
-               
-
-
+        else :
+            distance_to_stop = ((speed_agent + max_accel)*(speed_agent + max_accel) - speed_target*speed_target)/(2*DECELERATION_RATE) + ROBOTS_RADIUS + BALL_RADIUS - epsilon
+            if (distance_to_stop >= dist_to_ball ) : # On accelère 
+                speed_new = min(speed_agent + max_accel, ROBOTS_MAX_SPEED)
+            else : 
+                speed_new = speed_target
 
 
         # Nouvelle vitesse vectorielle
