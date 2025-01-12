@@ -2,32 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, Circle
 import matplotlib.transforms as transforms
 from constantes_physique import *
-
-def generate_random_velocity(max_speed):
-    speed = np.random.uniform(0, max_speed)
-    angle = np.random.uniform(0, 2 * np.pi)
-    vel_x = speed * np.cos(angle)
-    vel_y = speed * np.sin(angle)
-    return np.array([vel_x, vel_y])
-
-def acceleration(vel):
-    speed = np.linalg.norm(vel)
-    return -FRICTION_COEFF * vel / speed if speed > 0 else np.zeros_like(vel)
-
-# approximation rk4
-def update_ball_speed(pos, vel, dt):
-    k1_v = acceleration(vel) * dt
-    k1_p = vel * dt
-    k2_v = acceleration(vel + k1_v / 2) * dt
-    k2_p = (vel + k1_v / 2) * dt
-    k3_v = acceleration(vel + k2_v / 2) * dt
-    k3_p = (vel + k2_v / 2) * dt
-    k4_v = acceleration(vel + k3_v) * dt
-    k4_p = (vel + k3_v) * dt
-
-    new_vel = vel + (k1_v + 2 * k2_v + 2 * k3_v + k4_v) / 6
-    new_pos = pos + (k1_p + 2 * k2_p + 2 * k3_p + k4_p) / 6
-    return new_pos, new_vel
+import math
 
 def normalize(v):
     """Normalise un vecteur."""
@@ -48,6 +23,36 @@ def rotate_vector(v, angle):
     return np.dot(rotation_matrix, v)
 
 
+def minimal_arc_length_on_circle(R: float, 
+                                 x1: float, y1: float, 
+                                 x2: float, y2: float) -> float:
+    """
+    Returns the minimal distance along the circle of radius R
+    (centered at the origin) between points (x1,y1) and (x2,y2).
+    Both points are assumed to lie on the circle: sqrt(x^2 + y^2) = R.
+    """
+    # 1) Compute the angles (in radians) of each point
+    theta1 = math.atan2(y1, x1)
+    theta2 = math.atan2(y2, x2)
+    
+    # 2) Find the absolute difference in angles
+    dtheta = abs(theta2 - theta1)
+    
+    # 3) The minimal angular distance can't exceed pi (for the "short" arc)
+    #    so we take the smaller arc between dtheta and 2π - dtheta.
+    dtheta = min(dtheta, 2*math.pi - dtheta)
+    
+    # 4) Arc length = radius * angle (in radians)
+    arc_length = R * dtheta
+    return arc_length
+
+def fast_normalized_vector(p1, p2):
+    v = p2 - p1
+    norm_sq = v @ v  # Faster dot product
+    if norm_sq < 1e-8:  # avoid division by zero
+        return np.zeros_like(v)
+    return v/ np.sqrt(norm_sq)  
+    
 def Affichage_Historique(trajectory_ball, speeds_ball, 
                          ennemis_trajectories, ennemis_direction, ennemis_velocity_records, 
                          allies_trajectories, allies_direction, allies_velocity_records,

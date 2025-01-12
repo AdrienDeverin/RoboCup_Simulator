@@ -1,7 +1,32 @@
-from constantes_physique import *
 from utils import *
 import math
 
+def generate_random_velocity(max_speed):
+    speed = np.random.uniform(0, max_speed)
+    angle = np.random.uniform(0, 2 * np.pi)
+    vel_x = speed * np.cos(angle)
+    vel_y = speed * np.sin(angle)
+    return np.array([vel_x, vel_y])
+
+# TODO : To change
+def acceleration(vel):
+    speed = np.linalg.norm(vel)
+    return -FRICTION_COEFF * vel / speed if speed > 0 else np.zeros_like(vel)
+
+# approximation rk4
+def update_ball_speed(pos, vel, dt):
+    k1_v = acceleration(vel) * dt
+    k1_p = vel * dt
+    k2_v = acceleration(vel + k1_v / 2) * dt
+    k2_p = (vel + k1_v / 2) * dt
+    k3_v = acceleration(vel + k2_v / 2) * dt
+    k3_p = (vel + k2_v / 2) * dt
+    k4_v = acceleration(vel + k3_v) * dt
+    k4_p = (vel + k3_v) * dt
+
+    new_vel = vel + (k1_v + 2 * k2_v + 2 * k3_v + k4_v) / 6
+    new_pos = pos + (k1_p + 2 * k2_p + 2 * k3_p + k4_p) / 6
+    return new_pos, new_vel
 
 def FoundGoodCircle(pos_robot, pos_target, velocity_robot, velocity_target):
 
@@ -11,7 +36,7 @@ def FoundGoodCircle(pos_robot, pos_target, velocity_robot, velocity_target):
 
     # Rayons des cercles (v / omega)
     rayon_cercle_robot  = np.linalg.norm(velocity_robot)  / omega_robot
-    rayon_cercle_target = np.linalg.norm(velocity_target) / omega_target
+    rayon_cercle_target = min(np.linalg.norm(velocity_target), ROBOTS_MAX_SPEED) / omega_target
 
     # Normal à la vitesse du robot (pour construire le centre du cercle)
     normal_robot = np.array([-velocity_robot[1], velocity_robot[0]])
@@ -72,7 +97,7 @@ def tangentes_ext_1(cx1, cy1, r1, cx2, cy2, r2):
 
     # Vérification d'existence : d >= |r1 - r2|
     if d < abs(r1 - r2):
-        return 0,0# pas de tangentes externes réelles
+        return None,None # pas de tangentes externes réelles
 
     # Angle de la ligne des centres
     beta = math.atan2(dy, dx)
@@ -109,7 +134,7 @@ def tangentes_ext_2(cx1, cy1, r1, cx2, cy2, r2):
 
     # Vérification d'existence : d >= |r1 - r2|
     if d < abs(r1 - r2):
-        return 0,0  # pas de tangentes externes réelles
+        return None,None  # pas de tangentes externes réelles
 
     # Angle de la ligne des centres
     beta = math.atan2(dy, dx)
@@ -144,7 +169,7 @@ def tangentes_inter_1(cx1, cy1, r1, cx2, cy2, r2):
 
     # Vérification d'existence : d >= (r1 + r2)
     if d < (r1 + r2):
-        return 0,0  # pas de tangentes internes réelles
+        return None,None  # pas de tangentes internes réelles
 
     # Angle de la ligne des centres
     beta = math.atan2(dy, dx)
@@ -177,7 +202,7 @@ def tangentes_inter_2(cx1, cy1, r1, cx2, cy2, r2):
 
     # Vérification d'existence : d >= (r1 + r2)
     if d < (r1 + r2):
-        return 0,0  # pas de tangentes internes réelles
+        return None,None # pas de tangentes internes réelles
 
     # Angle de la ligne des centres
     beta = math.atan2(dy, dx)
@@ -200,6 +225,232 @@ def tangentes_inter_2(cx1, cy1, r1, cx2, cy2, r2):
 
     return  tang_minus
 
+def FoundWayDistance(pos_start, pos_p1, rayon_1, pos_p2, pos_end, rayon_2):
+    distance = 0
+    distance += minimal_arc_length_on_circle(rayon_1, pos_start[0], pos_start[1], pos_p1[0], pos_p2[1])
+    distance += np.linalg.norm(pos_p2-pos_p1)
+    distance += minimal_arc_length_on_circle(rayon_2, pos_p2[0], pos_p2[1], pos_end[0], pos_end[1])
+    return distance
+
+def accel_distance(v1, v2, accel):
+    # returns distance for changing speed from v1->v2 at 'accel' 
+    # if v2>v1 => acceleration, else deceleration
+    return (v2**2 - v1**2)/(2*accel)
+ 
+def time_vel_change(v1, v2, accel):
+    # time accel vs->v_max or dec vs->v_max
+    return abs(v2 - v1)/accel
+    
+def FoundTimeToCatch(velocity_start, velocity_end, distance):
+    """
+    Returns the minimal time to move exactly 'distance' meters,
+    starting at 'velocity_start' and finishing at 'velocity_end',
+    with constraints:
+      - accelerate at up to MAX_ACCELERATION_RATE
+      - decelerate at up to MAX_DECELERATION_RATE
+      - cannot exceed MAX_SPEED
+
+    3-phase approach:
+      1) accelerate from v_start -> v_cruise (<= v_max)
+      2) optional cruise at v_cruise
+      3) decelerate from v_cruise -> v_end
+    """
+
+    vs = float(velocity_start)
+    ve = float(velocity_end)
+    d  = float(distance)
+    if d <= 1e-9:
+        # No distance => time=0 (assuming we can't do partial negative?)
+        return 0.0
+
+    #---------------------------
+    # STEP 1: compute "ideal v_mid" ignoring v_max, 
+    #         from the 2-phase bang-bang formula 
+    #         (accelerate up from vs, dec down to ve)
+    # 
+    #   v_mid^2 * (1/(2a) + 1/(2b)) = d + vs^2/(2a) + ve^2/(2b).
+    # => v_mid^2 = ...
+    #---------------------------
+    left_side = d + (vs**2)/(2*ACCELERATION_RATE) + (ve**2)/(2*DECELERATION_RATE)
+    factor = (2*ACCELERATION_RATE*DECELERATION_RATE)/(ACCELERATION_RATE + DECELERATION_RATE)
+    v_mid_sq = left_side * factor
+    if v_mid_sq < 0:
+        # No real solution => distance or speeds are contradictory
+        return 0.0
+    v_mid_ideal = math.sqrt(v_mid_sq)
+
+    #---------------------------
+    # STEP 2: If v_mid_ideal <= v_max, 
+    #         we can do a direct 2-phase (bang-bang) solution 
+    #         => time = t_accel + t_decel.
+    #---------------------------
+    if v_mid_ideal <= ROBOTS_MAX_SPEED + 1e-9:
+        # 2-phase solution:
+        t1 = abs(v_mid_ideal - vs)/ACCELERATION_RATE
+        t2 = abs(v_mid_ideal - ve)/DECELERATION_RATE
+        return t1 + t2
+
+    #---------------------------
+    # STEP 3: v_mid_ideal > v_max => We do a 3-phase approach:
+    #  1) accelerate vs -> v_max
+    #  2) possibly cruise at v_max
+    #  3) decelerate v_max -> ve
+    #
+    #  We'll compute the distance needed for step1 + step3. 
+    #---------------------------
+    # 3.1 Distance to accelerate from vs to v_max (or decelerate if vs>v_max).
+    #     ds_acc = (v_max^2 - vs^2)/(2a) if v_max > vs, else 0 if vs >= v_max
+    #     but we must handle sign carefully.
+    ds_acc = 0.0
+    if vs < ROBOTS_MAX_SPEED:
+        ds_acc = (ROBOTS_MAX_SPEED**2 - vs**2)/(2*ACCELERATION_RATE)  # accelerate up
+    elif vs > ROBOTS_MAX_SPEED:
+        # we actually need to decelerate down to v_max if vs>v_max
+        ds_acc = (vs**2 - ROBOTS_MAX_SPEED**2)/(2*DECELERATION_RATE)
+    # if vs==v_max => no distance needed
+
+    # 3.2 Distance to decelerate from v_max to ve
+    ds_dec = 0.0
+    if ve < ROBOTS_MAX_SPEED:
+        ds_dec = (ROBOTS_MAX_SPEED**2 - ve**2)/(2*DECELERATION_RATE)  # dec down
+    elif ve > ROBOTS_MAX_SPEED:
+        # accelerate from v_max to ve? That might not be physically typical 
+        # but let's handle it
+        ds_dec = (ve**2 - ROBOTS_MAX_SPEED**2)/(2*ACCELERATION_RATE)
+    # if ve==v_max => no distance needed
+
+    dist_phases_1_3 = ds_acc + ds_dec
+
+    # 3.3 Compare sum(phase1+3) to total distance
+    if dist_phases_1_3 > d:
+        # We do not have enough distance to even reach v_max 
+        # => we do a 2-phase approach at some v_cruise < v_max.
+        #
+        # We'll solve again with the "bang-bang" formula, 
+        # but we know the solution was v_mid_ideal>v_max, 
+        # so we can't actually do that. 
+        # Instead we do a direct 2-phase from vs->ve with a, b, distance d.
+        #
+        # We'll adapt the same approach but forcibly solve for v_mid_2phase.
+        # We'll do: v_mid^2 = left_side * factor
+        # We already have v_mid_ideal, but that's >v_max => contradiction 
+        # => We'll "clamp" it. So we just do a single-phase if needed
+        #   or partial. Let's do a direct approach:
+
+        # a simpler approach: 
+        #   We'll find the speed v_cruise < v_max that solves accelerate vs->v_cruise
+        #   then dec v_cruise->ve => total distance = d.
+        # 
+        # We can do a small numeric solve or a direct approach below:
+        return _solve_2phase_with_clamped_vmax(vs, ve, d, ACCELERATION_RATE, DECELERATION_RATE, ROBOTS_MAX_SPEED)
+
+    # otherwise, we have leftover distance => we can do a middle "cruise" at v_max
+    dist_cruise = d - dist_phases_1_3
+    if dist_cruise < 0:
+        dist_cruise = 0.0  # numerical guard
+
+    # 3.4 Times
+    # phase1: vs->v_max
+    if vs < ROBOTS_MAX_SPEED:
+        t_acc = time_vel_change(vs, ROBOTS_MAX_SPEED, ACCELERATION_RATE)
+    elif vs > ROBOTS_MAX_SPEED:
+        t_acc = time_vel_change(vs, ROBOTS_MAX_SPEED, DECELERATION_RATE)
+    else:
+        t_acc = 0.0
+
+    # phase3: v_max->ve
+    if ve < ROBOTS_MAX_SPEED:
+        t_dec = time_vel_change(ROBOTS_MAX_SPEED, ve, DECELERATION_RATE)
+    elif ve > ROBOTS_MAX_SPEED:
+        t_dec = time_vel_change(ROBOTS_MAX_SPEED, ve, DECELERATION_RATE)
+    else:
+        t_dec = 0.0
+
+    # phase2: cruise at v_max
+    if ROBOTS_MAX_SPEED < 1e-9:
+        t_cruise = 0.0
+    else:
+        t_cruise = dist_cruise / ROBOTS_MAX_SPEED
+
+    return t_acc + t_cruise + t_dec
+
+def _solve_2phase_with_clamped_vmax(vs, ve, d, a, b, v_max):
+    """
+    Helper for the scenario where the standard formula gave v_mid_ideal > v_max,
+    but we also found that going up/down to v_max is too much distance.
+    => So we must do a 2-phase accelerate->decelerate without ever reaching v_max.
+    
+    We'll do a direct solve:
+      - We want v_cruise such that dist_accel + dist_decel = d,
+        where dist_accel = (v_cruise^2 - vs^2)/(2a),
+              dist_decel = (v_cruise^2 - ve^2)/(2b).
+      - => v_cruise^2 (1/(2a) + 1/(2b)) = d + vs^2/(2a) + ve^2/(2b).
+      - That's the same "bang-bang" formula. We'll clamp final v_cruise <= v_max
+        but in fact, we already know the formula result is > v_max.
+        So the maximum feasible is v_cruise = v_max. But we know that sum would exceed d. 
+        => we must do a smaller v_cruise < v_max => in practice we use numeric approach
+           or just do the same formula but partial ...
+      - We'll do a small numeric solution for v_cruise in [0, v_max].
+        It's typically fast enough for these situations.
+    """
+    # We'll do a quick bisection on v_cruise in [0, v_max].
+    # dist(v_cruise) = dist_acc + dist_dec
+    #                = (v_cruise^2 - vs^2)/(2a) + (v_cruise^2 - ve^2)/(2b).
+    # we want dist(v_cruise) = d.
+
+    def dist_for_cruise(vc):
+        return (vc**2 - vs**2)/(2*a) + (vc**2 - ve**2)/(2*b)
+
+    # bisection
+    lower = 0.0
+    upper = v_max
+    for _ in range(50):
+        mid = 0.5*(lower + upper)
+        dist_mid = dist_for_cruise(mid)
+        if dist_mid > d:
+            # reduce v_cruise
+            upper = mid
+        else:
+            lower = mid
+    v_cruise = 0.5*(lower + upper)
+
+    # Now compute time with that v_cruise
+    def time_vel_change(v1, v2, accel):
+        return abs(v2 - v1)/accel
+
+    # accelerate vs->v_cruise
+    t1 = time_vel_change(vs, v_cruise, a) if v_cruise>=vs else time_vel_change(vs, v_cruise, b)
+    # decelerate v_cruise->ve
+    t2 = time_vel_change(v_cruise, ve, b) if v_cruise>=ve else time_vel_change(v_cruise, ve, a)
+    return t1 + t2
+
+def calculate_time_and_target_tangent(pos_start, pos_target, vel_current, vel_target):
+    """
+    return time to reach the ball, total curve distance, the tangente point to reach, the direction of this tangente point 
+    Some particulare exeptions (lorsqu'un cercle est circoncrit dans l'autre) can leads to None values
+    """
+    centre_cercle_robot, rayon_cercle_robot, sens_rotation_robot, centre_cercle_target, rayon_cercle_target, sens_rotation_target = FoundGoodCircle(pos_start, pos_target, vel_current, vel_target)
+    if (sens_rotation_robot < 0 and sens_rotation_target > 0):
+        p1, p2 = tangentes_inter_1(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target)
+    elif (sens_rotation_robot > 0 and sens_rotation_target < 0):  
+        p1, p2 = tangentes_inter_2(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target)
+    elif (sens_rotation_robot > 0 and sens_rotation_target > 0):  
+        p1, p2 = tangentes_ext_1(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target)
+    elif (sens_rotation_robot < 0 and sens_rotation_target < 0):  
+        p1, p2 = tangentes_ext_2(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target)
+    
+    if (p1 != None):
+        p1 = np.array(p1)
+        p2 = np.array(p2)
+        distance_total = FoundWayDistance(pos_start, p1, rayon_cercle_robot, p2, pos_target, rayon_cercle_target)
+        timeToReach = FoundTimeToCatch(np.linalg.norm(vel_current), np.linalg.norm(vel_target), distance_total)
+        return timeToReach, distance_total, fast_normalized_vector(p1,p2), sens_rotation_robot
+    else :
+        return None, None, None, None          
+
+
+
+# Not used
 def tangentes_externes(cx1, cy1, r1, cx2, cy2, r2):
     """
     Calcule les 2 tangentes externes entre deux cercles.
@@ -296,7 +547,7 @@ def tangentes_2_cercles(cx1, cy1, r1, cx2, cy2, r2):
 
 
 
-
+# OBSELET
 # TODO Changement endroit colision
 def handle_collision_2D(ball_velocity, ROBOTS_velocity, ball_position, ROBOTS_position):
     """

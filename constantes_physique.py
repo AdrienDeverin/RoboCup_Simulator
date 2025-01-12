@@ -12,3 +12,4 @@ ROBOTS_MAX_ANGULAR_SPEED = np.pi # Vitesse angulaire maximale des obstacles en r
 ACCELERATION_RATE = 4  # Accélération des obstacles en m/s^2
 DECELERATION_RATE = 4  # Décélération des obstacles en m/s^2
 COEFFICIENT_RESTITUTION = 0.8  # Coefficient de restitution pour le rebond
+GRIPPER_ABSORPTION = 1.5 # m.s-1
