@@ -92,6 +92,15 @@ def simulate_ball_trajectory(ball, robots_ennemi, robots_allie, time_step_ms=50,
 
                 if (ACTION_DESISION == "CATCH_BALL"):
 
+
+                    #
+
+
+
+
+
+
+
                     ####### Part 1 : Trouver cible + Déplacement (si possible) ######
                     # On connait : position_ball - vitesse_ball - position robot - vitesse robot
                     # On veux : atteindre la ball avec le même vecteur vitesse en un temps minimum 

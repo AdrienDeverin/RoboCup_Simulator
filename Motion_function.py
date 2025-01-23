@@ -450,6 +450,34 @@ def calculate_time_and_target_tangent(pos_start, pos_target, vel_current, vel_ta
 
 
 
+
+## En cours 
+
+## Contrainte : 
+# A/Force_max => R = v*v / a (a = Nb de g max)
+# Accel_max
+# Decel_max
+# V_max
+
+def Trajectory_Planner(pos_start, v_start, pos_end, v_end, dt):
+    Accel = [] # - decel / accel 
+    Angle = [] # -pi / pi
+    Time_Step = []
+    pt_cible = []
+    v_cible = []
+
+
+    v_end = min(v_end, ROBOTS_MAX_SPEED) # On ne peux pas dépasser notre v_max 
+    # Cercle d'arrivé 
+    
+
+    return 
+
+
+
+
+
+
 # Not used
 def tangentes_externes(cx1, cy1, r1, cx2, cy2, r2):
     """
