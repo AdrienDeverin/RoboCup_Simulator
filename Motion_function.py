@@ -1,5 +1,6 @@
 from utils import *
 import math
+from profil_speed import *
 
 def generate_random_velocity(max_speed):
     speed = np.random.uniform(0, max_speed)
@@ -31,8 +32,8 @@ def update_ball_speed(pos, vel, dt):
 def FoundGoodCircle(pos_robot, pos_target, velocity_robot, velocity_target):
 
     # TODO : Vitesse angulaire max (ici fixée, pourrait dépendre de la vitesse courante)
-    omega_robot  = ROBOTS_MAX_ANGULAR_SPEED
-    omega_target = ROBOTS_MAX_ANGULAR_SPEED
+    omega_robot  = velocity_robot*velocity_robot/ROBOTS_MAX_A
+    omega_target = velocity_target*velocity_target/ROBOTS_MAX_A
 
     # Rayons des cercles (v / omega)
     rayon_cercle_robot  = np.linalg.norm(velocity_robot)  / omega_robot
@@ -460,16 +461,90 @@ def calculate_time_and_target_tangent(pos_start, pos_target, vel_current, vel_ta
 # V_max
 
 def Trajectory_Planner(pos_start, v_start, pos_end, v_end, dt):
+    # TODO : Ajouter des obstacles (humain, robots... essentiel pour profil de vitesse final)
+    
     Accel = [] # - decel / accel 
     Angle = [] # -pi / pi
-    Time_Step = []
+    Time = []
     pt_cible = []
     v_cible = []
-
-
     v_end = min(v_end, ROBOTS_MAX_SPEED) # On ne peux pas dépasser notre v_max 
-    # Cercle d'arrivé 
-    
+    stop = False
+
+    while not stop:
+        centre_cercle_robot, rayon_cercle_robot, sens_rotation_robot, centre_cercle_target, rayon_cercle_target, sens_rotation_target = FoundGoodCircle(pos_start, pos_end, v_start, v_end)
+        #TODO: Attention vérifier que l'on ne sort pas du terrain lors du choix.
+        if (sens_rotation_robot < 0 and sens_rotation_target > 0):
+            p1, p2 = tangentes_inter_1(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target)
+        elif (sens_rotation_robot > 0 and sens_rotation_target < 0):  
+            p1, p2 = tangentes_inter_2(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target)
+        elif (sens_rotation_robot > 0 and sens_rotation_target > 0):  
+            p1, p2 = tangentes_ext_1(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target)
+        elif (sens_rotation_robot < 0 and sens_rotation_target < 0):  
+            p1, p2 = tangentes_ext_2(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target)
+        
+        if (p1 != None) :
+            # Solution de chemin exist 
+            p1 = np.array(p1)
+            p2 = np.array(p2)
+      
+            d1 = minimal_arc_length_on_circle(rayon_cercle_robot, pos_start[0], pos_start[1], p1[0], p2[1])
+            v1 = np.linalg.norm(v_start) # v_max premier segment 
+            d2 = np.linalg.norm(p2-p1)
+            v2 = ROBOTS_MAX_SPEED  # v_max second segment
+            d3 = minimal_arc_length_on_circle(rayon_cercle_target, p2[0], p2[1], pos_end[0], pos_end[1])
+            v3 = np.linalg.norm(v_end)  # v_max dernier segment
+
+            result = compute_speed_profile([d1,d2,d3], [v1,v2,v3], v_start, v_end, ACCELERATION_RATE, DECELERATION_RATE)
+            if result == "No solution":
+                print("No solution") # todo
+                return 
+            
+            else : 
+                node_speeds, profile_points = result
+                v_current = v_start
+                for (x, v) , i in enumerate(profile_points[1:]):
+                    print(f" x={x:5.2f} m,  v={v:5.2f} m/s")
+                    if (x <= d1):
+                        next_point = avancer_sur_cercle(centre_cercle_robot, rayon_cercle_robot, pos_start, sens_rotation_robot , x)
+                        pt_cible.append(next_point)
+                        v_cible.append(v)
+                        if (v > v_current):
+                            Accel.append(ACCELERATION_RATE)
+                            Time.append((v-v_current)/ACCELERATION_RATE)
+                        elif (v < v_current):
+                            Accel.append(DECELERATION_RATE)
+                            Time.append((v_current-v)/DECELERATION_RATE)
+                        else :
+                            Accel.append(0)
+                            Time.append((x-profile_points[i][0])/v)
+                        Angle.append(sens_rotation_robot*v1*v1/ROBOTS_MAX_A)
+                        v_current = v
+                    
+                    elif (x <= d2): 
+                        next_point = avancer_ligne_droite de p1 à x-d1
+                        pt_cible.append(next_point)
+                        v_cible.append(v)
+                        if (v > v_current):
+                            Accel.append(ACCELERATION_RATE)
+                            Time.append((v-v_current)/ACCELERATION_RATE)
+                        elif (v < v_current):
+                            Accel.append(DECELERATION_RATE)
+                            Time.append((v_current-v)/DECELERATION_RATE)
+                        else :
+                            Accel.append(0)
+                            Time.append((x-profile_points[i][0])/v)
+                        Angle.append(sens_rotation_robot*v1*v1/ROBOTS_MAX_A)
+                        v_current = v
+
+                    else :
+                        
+
+                stop = True
+            
+        else :
+            # S'éloigner ? todo
+            return 
 
     return 
 

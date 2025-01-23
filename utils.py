@@ -46,6 +46,32 @@ def minimal_arc_length_on_circle(R: float,
     arc_length = R * dtheta
     return arc_length
 
+
+def avancer_sur_cercle(C, R, point_initial, w, d):
+    """
+    Avance un point sur un cercle d'une distance d.
+    Retourne :
+    - tuple, les coordonnées du nouveau point (Px', Py')
+    """
+    # Extraire les coordonnées du centre et du point initial
+    Cx, Cy = C
+    Px, Py = point_initial
+
+    # Calculer l'angle initial du point par rapport au centre
+    angle_initial = math.atan2(Py - Cy, Px - Cx)
+
+    # Calculer l'angle parcouru en fonction de la distance d
+    angle_parcouru = w * (d / R)
+
+    # Calculer le nouvel angle
+    nouvel_angle = angle_initial + angle_parcouru
+
+    # Calculer les nouvelles coordonnées
+    Px_prime = Cx + R * math.cos(nouvel_angle)
+    Py_prime = Cy + R * math.sin(nouvel_angle)
+
+    return (Px_prime, Py_prime)
+
 def fast_normalized_vector(p1, p2):
     v = p2 - p1
     norm_sq = v @ v  # Faster dot product

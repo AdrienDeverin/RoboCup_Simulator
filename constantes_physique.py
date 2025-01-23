@@ -9,7 +9,7 @@ ROBOTS_HEIGHT = 0.8 # Taille robot
 FRICTION_COEFF = 0.5  # Coefficient de frottement (décélération par seconde)
 ROBOTS_MAX_SPEED = 4  # Vitesse maximale des obstacles en m/s
 ROBOTS_MAX_ANGULAR_SPEED = np.pi # Vitesse angulaire maximale des obstacles en radians/s
-ROBOTS_MAX_G = 1.2
+ROBOTS_MAX_A = 1.2*9.81
 
 ACCELERATION_RATE = 4  # Accélération des obstacles en m/s^2
 DECELERATION_RATE = 4  # Décélération des obstacles en m/s^2
