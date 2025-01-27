@@ -31,13 +31,9 @@ def update_ball_speed(pos, vel, dt):
 
 def FoundGoodCircle(pos_robot, pos_target, velocity_robot, velocity_target):
 
-    # TODO : Vitesse angulaire max (ici fixée, pourrait dépendre de la vitesse courante)
-    omega_robot  = velocity_robot*velocity_robot/ROBOTS_MAX_A
-    omega_target = velocity_target*velocity_target/ROBOTS_MAX_A
-
-    # Rayons des cercles (v / omega)
-    rayon_cercle_robot  = np.linalg.norm(velocity_robot)  / omega_robot
-    rayon_cercle_target = min(np.linalg.norm(velocity_target), ROBOTS_MAX_SPEED) / omega_target
+    # Rayons des cercles (v**2 / Acc_centri)
+    rayon_cercle_robot  = np.linalg.norm(velocity_robot)**2  / ROBOTS_MAX_A
+    rayon_cercle_target = np.linalg.norm(velocity_target)**2 / ROBOTS_MAX_A
 
     # Normal à la vitesse du robot (pour construire le centre du cercle)
     normal_robot = np.array([-velocity_robot[1], velocity_robot[0]])
@@ -451,7 +447,6 @@ def calculate_time_and_target_tangent(pos_start, pos_target, vel_current, vel_ta
 
 
 
-
 ## En cours 
 
 ## Contrainte : 
@@ -468,7 +463,8 @@ def Trajectory_Planner(pos_start, v_start, pos_end, v_end, dt):
     Time = []
     pt_cible = []
     v_cible = []
-    v_end = min(v_end, ROBOTS_MAX_SPEED) # On ne peux pas dépasser notre v_max 
+    if (np.linalg.norm(v_end) > ROBOTS_MAX_SPEED):
+        v_end = v_end/np.linalg.norm(v_end) * ROBOTS_MAX_SPEED # On ne peux pas dépasser notre v_max 
     stop = False
 
     while not stop:
@@ -495,17 +491,17 @@ def Trajectory_Planner(pos_start, v_start, pos_end, v_end, dt):
             d3 = minimal_arc_length_on_circle(rayon_cercle_target, p2[0], p2[1], pos_end[0], pos_end[1])
             v3 = np.linalg.norm(v_end)  # v_max dernier segment
 
-            result = compute_speed_profile([d1,d2,d3], [v1,v2,v3], v_start, v_end, ACCELERATION_RATE, DECELERATION_RATE)
+            result = compute_speed_profile([d1,d2], [v1,v2], v1, v3, ACCELERATION_RATE, DECELERATION_RATE) # TODO + error 
             if result == "No solution":
-                print("No solution") # todo
+                print("No solution") # TODO
                 return 
             
             else : 
                 node_speeds, profile_points = result
-                v_current = v_start
-                for (x, v) , i in enumerate(profile_points[1:]):
+                v_current = v1
+                for i, (x, v) in enumerate(profile_points[1:]):
                     print(f" x={x:5.2f} m,  v={v:5.2f} m/s")
-                    if (x <= d1):
+                    if (x <= d1): # 1ere rotation 
                         next_point = avancer_sur_cercle(centre_cercle_robot, rayon_cercle_robot, pos_start, sens_rotation_robot , x)
                         pt_cible.append(next_point)
                         v_cible.append(v)
@@ -513,44 +509,51 @@ def Trajectory_Planner(pos_start, v_start, pos_end, v_end, dt):
                             Accel.append(ACCELERATION_RATE)
                             Time.append((v-v_current)/ACCELERATION_RATE)
                         elif (v < v_current):
-                            Accel.append(DECELERATION_RATE)
+                            Accel.append(-DECELERATION_RATE)
                             Time.append((v_current-v)/DECELERATION_RATE)
                         else :
                             Accel.append(0)
                             Time.append((x-profile_points[i][0])/v)
-                        Angle.append(sens_rotation_robot*v1*v1/ROBOTS_MAX_A)
-                        v_current = v
+                        Angle.append(sens_rotation_robot*ROBOTS_MAX_A/v1)
                     
-                    elif (x <= d2): 
-                        next_point = avancer_ligne_droite de p1 à x-d1
+                    elif (x <= (d2+d1)): # ligne droite 
+                        next_point = p1 + (x-d1)*(p2-p1)/np.linalg.norm(p2-p1)
                         pt_cible.append(next_point)
                         v_cible.append(v)
                         if (v > v_current):
                             Accel.append(ACCELERATION_RATE)
                             Time.append((v-v_current)/ACCELERATION_RATE)
                         elif (v < v_current):
-                            Accel.append(DECELERATION_RATE)
+                            Accel.append(-DECELERATION_RATE)
                             Time.append((v_current-v)/DECELERATION_RATE)
                         else :
                             Accel.append(0)
                             Time.append((x-profile_points[i][0])/v)
-                        Angle.append(sens_rotation_robot*v1*v1/ROBOTS_MAX_A)
-                        v_current = v
+                        Angle.append(0)
 
-                    else :
-                        
-
+                    else : # 2eme rotation (d3 >= x > d2)
+                        next_point = avancer_sur_cercle(centre_cercle_target, rayon_cercle_target, p2, sens_rotation_target, x-d2)
+                        pt_cible.append(next_point)
+                        v_cible.append(v)
+                        if (v > v_current):
+                            Accel.append(ACCELERATION_RATE)
+                            Time.append((v-v_current)/ACCELERATION_RATE)
+                        elif (v < v_current):
+                            Accel.append(-DECELERATION_RATE)
+                            Time.append((v_current-v)/DECELERATION_RATE)
+                        else :
+                            Accel.append(0)
+                            Time.append((x-profile_points[i][0])/v)
+                        Angle.append(sens_rotation_target*ROBOTS_MAX_A/v3)
+                    
+                    v_current = v
                 stop = True
             
         else :
-            # S'éloigner ? todo
+            # S'éloigner ? TODO
             return 
 
-    return 
-
-
-
-
+    return Accel, Angle, Time, pt_cible, v_cible
 
 
 # Not used
@@ -647,8 +650,6 @@ def tangentes_2_cercles(cx1, cy1, r1, cx2, cy2, r2):
     tex = tangentes_externes(cx1, cy1, r1, cx2, cy2, r2)
     tin = tangentes_internes(cx1, cy1, r1, cx2, cy2, r2)
     return tex + tin
-
-
 
 # OBSELET
 # TODO Changement endroit colision

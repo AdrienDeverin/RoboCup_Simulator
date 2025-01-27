@@ -28,12 +28,10 @@ def compute_speed_profile(
         else:
             return "No solution"
 
-    # --- Vérifications de base ---
-    for i in range(n):
-        if segment_lengths[i] <= 0:
-            return "No solution (segment de longueur non positive)"
-        if vmax_list[i] <= 0:
-            return "No solution (vmax non positive pour un segment)"
+    # --- supprime segment nul ---
+    indices_a_conserver = [i for i in range(len(segment_lengths)) if segment_lengths[i] > 0]
+    segment_lengths= [segment_lengths[i] for i in indices_a_conserver]
+    vmax_list = [vmax_list[i] for i in indices_a_conserver]
 
     # speeds[i] sera la vitesse au point i (0 -> A, 1 -> B, 2 -> C, etc.)
     speeds = [0.0] * (n + 1)

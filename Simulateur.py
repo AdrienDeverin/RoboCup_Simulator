@@ -10,17 +10,17 @@ ball = BALL(pos = np.array([1.0, 1.0]),
             velocity= np.array([initial_speed * np.cos(angle_rad), initial_speed * np.sin(angle_rad)], dtype=float), 
             iscatch=False)
 
-# ball2 = BALL(pos = np.array([10.0, 12.0]), 
-#             velocity= np.array([0,0], dtype=float), 
-#             iscatch=False)
+ball2 = BALL(pos = np.array([10.0, 12.0]), 
+            velocity= np.array([0,0], dtype=float), 
+            iscatch=False)
 
 robot_A1 = ROBOT(pos = np.array([1.0, 1.0]), 
                 velocity = np.array([0 , 0]), 
                 normal = np.array([1.0, 1.0]), 
                 isON = True, hasBall = True)
 
-robot_E1 = ROBOT(pos = np.array([6.0, 5.0]), 
-                velocity = np.array([0 , 0]), 
+robot_E1 = ROBOT(pos = np.array([10.0, 2.0]), 
+                velocity = np.array([-3.5 , 0]), 
                 normal = np.array([-2.0, 0.0]), 
                 isON = True, hasBall = False)
 
@@ -61,7 +61,8 @@ def simulate_ball_trajectory(ball, robots_ennemi, robots_allie, time_step_ms=50,
     DONT_STOP = True
     old_pos_ball = ball.pos
     time = 0 
-    TIME_MAX = 3
+    TIME_MAX = 5
+
     while DONT_STOP :
         time_last_record += time_step_ms
         time += dt
@@ -70,18 +71,6 @@ def simulate_ball_trajectory(ball, robots_ennemi, robots_allie, time_step_ms=50,
         if (not ball.iscatch) :
             old_pos_ball = ball.pos
             ball.update_position(dt) # TODO : prendre en compte tout les obstacle et gérer rebond
-
-        # robots_ennemi[0].update_vel_pos_tocatchball_1(ball.pos, ball.velocity, dt)
-        # robots_ennemi[1].update_vel_pos_tocatchball_2(ball.pos, ball.velocity, dt)
-        # ennemis_trajectories[0].append(tuple(robots_ennemi[0].pos))
-        # ennemis_trajectories[1].append(tuple(robots_ennemi[1].pos))
-        # for i, robot in enumerate(robots_ennemi):
-        #     dir_to_ball = ball.pos -  robots_ennemi[i].pos
-        #     dist_to_ball = np.linalg.norm(dir_to_ball)
-        #     if dist_to_ball <= (ROBOTS_RADIUS+BALL_RADIUS):
-        #         print(i)
-        #         time_last_record = time_step_affichage_ms
-        #         DONT_STOP = False
 
         # Update position robot ennemis 
         for i, robot in enumerate(robots_ennemi) : 
@@ -92,77 +81,148 @@ def simulate_ball_trajectory(ball, robots_ennemi, robots_allie, time_step_ms=50,
 
                 if (ACTION_DESISION == "CATCH_BALL"):
 
-
-                    #
-
-
-
-
-
-
-
                     ####### Part 1 : Trouver cible + Déplacement (si possible) ######
                     # On connait : position_ball - vitesse_ball - position robot - vitesse robot
                     # On veux : atteindre la ball avec le même vecteur vitesse en un temps minimum 
                     #####################
-                    current_speed =  np.linalg.norm(robot.velocity)
-                    # Si on est trop proche de la cible (distance cible < rayon cercle cible) : suivit classique 
-                    if (np.linalg.norm(ball.pos - np.array(robot.pos)) < (max(current_speed, np.linalg.norm(ball.velocity))/ROBOTS_MAX_ANGULAR_SPEED + ROBOTS_RADIUS + BALL_RADIUS)) :
-                        robot.update_vel_pos_tocatchball(ball.pos, ball.velocity, dt) # TODO : esquiver ennemis ou limiter distance contacte et limite terrain (prendre liste de tous les robots sauf celui ci) 
+                    if (robot.targetPoint_isupdated): 
+                        # Determine target point 
+                        direction_to_ball = (ball.pos - np.array(robot.pos))
+                        direction_to_ball /= np.linalg.norm(direction_to_ball)
+                        epsilon = 0.01
+                        target_point = ball.pos - direction_to_ball*(ROBOTS_RADIUS+BALL_RADIUS-epsilon)
 
-                    else : 
-                        # Optimisation calcul -> Robot stock point cible et actualise seulement angle valocity à changé (#TODO plutôt si pos théorique ball a changé ?) (collision ou erreur vitesse initiale)
-                        if (robot.targetPoint is None or robot.targetVelocity is None or angle_between_vectors(robot.targetVelocity, ball.velocity) > 1e-5): # point change :
-                            list_futur_pos, list_futur_vel, list_futur_time_ball = ball.futur_points(dt)
-                            time_to_catch, distance_trajet, dir_tangent, sens_rotation = robot.update_targetPoint(list_futur_pos, list_futur_vel, list_futur_time_ball, dt) # Trouve le point cible et donne le temps
+                        Accel, Angle, Time, pt_cible, v_cible = Trajectory_Planner(robot.pos, robot.velocity, target_point, ball.velocity, dt)
+                        robot.Accel = Accel
+                        robot.Angle = Angle
+                        robot.Time = Time
+                        robot.TrajectoryStepPoint = pt_cible
+                        robot.TrajectoryStepVel = v_cible
+                        robot.targetPoint = target_point
+                        robot.targetVelocity = ball.velocity
+                        robot.targetPoint_isupdated = False 
 
-                        # else : # le point est le même 
-                        #     time_to_catch, distance_trajet, dir_tangent, sens_rotation = calculate_time_and_target_tangent(robot.pos, robot.targetPoint, robot.velocity, robot.targetVelocity)
+                    if (len(robot.Time)> 0):
+                        # Avancer selon trajectoire 
+                        # TODO : AJOUTER esquiver ennemis ou limiter distance contacte et limite terrain (prendre liste de tous les robots sauf celui ci)
                         
-                        if (time_to_catch != None):
-                            print(f"Estimation time before catching ball = {round(time_to_catch)}s")
-                            # Avancer selon trajectoire 
-                            # TODO : AJOUTER esquiver ennemis ou limiter distance contacte et limite terrain (prendre liste de tous les robots sauf celui ci)
-                            
-                            # Réglage angle
-                            if (current_speed > 1e-5):
-                                angle_to_target = angle_between_vectors(robot.velocity, dir_tangent)
-                                max_angle = ROBOTS_MAX_ANGULAR_SPEED * dt 
-                                new_direction = rotate_vector(robot.velocity, sens_rotation * min(max_angle, angle_to_target))
-                                new_direction /= np.linalg.norm(new_direction)
+                        if (Time[0] > dt or len(Time) == 1):
+                            speed = np.linalg.norm(robot.velocity)
+                            if (speed > 1e-5): 
+                                new_dir = rotate_vector(robot.velocity, robot.Angle[0]*dt)/speed
                             else :
-                                new_direction = dir_tangent
+                                new_dir = robot.TrajectoryStepPoint[0] - robot.pos
+                                new_dir /= np.linalg.norm(new_dir)
 
-                            # Réglage speed # Ralentir si on s'éloigne ? ...
-                            max_accel = ACCELERATION_RATE *dt
-                            max_decel = DECELERATION_RATE *dt
-                            epsilon = 0.03 # volume catch ball
-                            if (current_speed + max_accel > robot.targetSpeed): 
-                                distance_to_stop = (current_speed*current_speed - robot.targetSpeed*robot.targetSpeed)/(2*DECELERATION_RATE) + ROBOTS_RADIUS + BALL_RADIUS - epsilon # ditance à cette vitesse
-                                if (distance_to_stop >= distance_trajet ) : #ON va trop vite -> freine 
-                                    speed_new = max(current_speed - max_decel, robot.targetSpeed)
-                                else : 
-                                    d_supp = (2*current_speed*max_accel + max_accel*max_accel)/(2*DECELERATION_RATE)
-                                    if ((distance_to_stop+ d_supp) > distance_trajet):
-                                        # maintiend vitesse courante
-                                        speed_new = current_speed
-                                    else :
-                                        # accel
-                                        speed_new = min(current_speed + max_accel, ROBOTS_MAX_SPEED)
-                            else :
-                                distance_to_stop = ((current_speed + max_accel)*(current_speed+ max_accel) - robot.targetSpeed*robot.targetSpeed)/(2*DECELERATION_RATE) + ROBOTS_RADIUS + BALL_RADIUS - epsilon
-                                if (distance_to_stop >= distance_trajet ) : # On accelère 
-                                    speed_new = min(current_speed + max_accel, ROBOTS_MAX_SPEED)
-                                else : 
-                                    speed_new = robot.targetSpeed
+                            new_speed = min(speed + robot.Accel[0]*dt, ROBOTS_MAX_SPEED) # comparaison unecessary ? 
+                            if (new_speed < 0):
+                                new_speed = 0
+                                robot.targetPoint_isupdated = True
+                                DONT_STOP = False
 
                             # Update velocity
-                            robot.velocity = speed_new * new_direction
+                            robot.velocity = new_speed * new_dir
                             # Update pos 
                             robot.pos = robot.pos + robot.velocity * dt
+                            robot.Time[0] -= dt
 
                         else :
-                            print("Interception Impossible !")
+                            Time_step_1 = Time[0]
+                            Time_step_2 = min(dt-Time_step_1, Time[1])
+                            Time[1] -= Time_step_2
+
+                            speed = np.linalg.norm(robot.velocity)
+                            if (speed > 1e-5): 
+                                new_dir = rotate_vector(robot.velocity, robot.Angle[0]*(Time_step_1)) 
+                                new_dir /= speed
+                                new_dir + rotate_vector(new_dir, robot.Angle[1]*(Time_step_2))
+                            else :
+                                new_dir = robot.TrajectoryStepPoint[1] - robot.pos
+                                new_dir /= np.linalg.norm(new_dir)
+
+                            new_speed = min(speed + robot.Accel[0]*Time_step_1 + robot.Accel[1]*Time_step_2, ROBOTS_MAX_SPEED) 
+                            if (new_speed < 0):
+                                new_speed = 0
+                                robot.targetPoint_isupdated = True
+                                DONT_STOP = False
+
+                            # Update velocity
+                            robot.velocity = new_speed * new_dir
+                            # Update pos 
+                            robot.pos = robot.pos + robot.velocity * dt
+                            robot.Time[0] -= Time_step_1
+ 
+                        while (len(robot.Time)> 0 and robot.Time[0] <= 0 ):
+                            del robot.Time[0]
+                            del robot.Accel[0]
+                            del robot.Angle[0]
+                            del robot.TrajectoryStepPoint[0]
+                            del robot.TrajectoryStepVel[0]
+
+                    else :
+                        print ("Fin")
+                        robot.targetPoint_isupdated = True
+
+
+
+                    # current_speed =  np.linalg.norm(robot.velocity)
+                    # # Si on est trop proche de la cible (distance cible < rayon cercle cible) : suivit classique 
+                    # if (np.linalg.norm(ball.pos - np.array(robot.pos)) < (max(current_speed, np.linalg.norm(ball.velocity))/ROBOTS_MAX_ANGULAR_SPEED + ROBOTS_RADIUS + BALL_RADIUS)) :
+                    #     robot.update_vel_pos_tocatchball(ball.pos, ball.velocity, dt) # TODO : esquiver ennemis ou limiter distance contacte et limite terrain (prendre liste de tous les robots sauf celui ci) 
+
+                    # else : 
+                    #     # Optimisation calcul -> Robot stock point cible et actualise seulement angle valocity à changé (#TODO plutôt si pos théorique ball a changé ?) (collision ou erreur vitesse initiale)
+                    #     if (robot.targetPoint is None or robot.targetVelocity is None or angle_between_vectors(robot.targetVelocity, ball.velocity) > 1e-5): # point change :
+                    #         list_futur_pos, list_futur_vel, list_futur_time_ball = ball.futur_points(dt)
+                    #         time_to_catch, distance_trajet, dir_tangent, sens_rotation = robot.update_targetPoint(list_futur_pos, list_futur_vel, list_futur_time_ball, dt) # Trouve le point cible et donne le temps
+
+                    #     # else : # le point est le même 
+                    #     #     time_to_catch, distance_trajet, dir_tangent, sens_rotation = calculate_time_and_target_tangent(robot.pos, robot.targetPoint, robot.velocity, robot.targetVelocity)
+                        
+                    #     if (time_to_catch != None):
+                    #         print(f"Estimation time before catching ball = {round(time_to_catch)}s")
+                    #         # Avancer selon trajectoire 
+                    #         # TODO : AJOUTER esquiver ennemis ou limiter distance contacte et limite terrain (prendre liste de tous les robots sauf celui ci)
+                            
+                    #         # Réglage angle
+                    #         if (current_speed > 1e-5):
+                    #             angle_to_target = angle_between_vectors(robot.velocity, dir_tangent)
+                    #             max_angle = ROBOTS_MAX_ANGULAR_SPEED * dt 
+                    #             new_direction = rotate_vector(robot.velocity, sens_rotation * min(max_angle, angle_to_target))
+                    #             new_direction /= np.linalg.norm(new_direction)
+                    #         else :
+                    #             new_direction = dir_tangent
+
+                    #         # Réglage speed # Ralentir si on s'éloigne ? ...
+                    #         max_accel = ACCELERATION_RATE *dt
+                    #         max_decel = DECELERATION_RATE *dt
+                    #         epsilon = 0.03 # volume catch ball
+                    #         if (current_speed + max_accel > robot.targetSpeed): 
+                    #             distance_to_stop = (current_speed*current_speed - robot.targetSpeed*robot.targetSpeed)/(2*DECELERATION_RATE) + ROBOTS_RADIUS + BALL_RADIUS - epsilon # ditance à cette vitesse
+                    #             if (distance_to_stop >= distance_trajet ) : #ON va trop vite -> freine 
+                    #                 speed_new = max(current_speed - max_decel, robot.targetSpeed)
+                    #             else : 
+                    #                 d_supp = (2*current_speed*max_accel + max_accel*max_accel)/(2*DECELERATION_RATE)
+                    #                 if ((distance_to_stop+ d_supp) > distance_trajet):
+                    #                     # maintiend vitesse courante
+                    #                     speed_new = current_speed
+                    #                 else :
+                    #                     # accel
+                    #                     speed_new = min(current_speed + max_accel, ROBOTS_MAX_SPEED)
+                    #         else :
+                    #             distance_to_stop = ((current_speed + max_accel)*(current_speed+ max_accel) - robot.targetSpeed*robot.targetSpeed)/(2*DECELERATION_RATE) + ROBOTS_RADIUS + BALL_RADIUS - epsilon
+                    #             if (distance_to_stop >= distance_trajet ) : # On accelère 
+                    #                 speed_new = min(current_speed + max_accel, ROBOTS_MAX_SPEED)
+                    #             else : 
+                    #                 speed_new = robot.targetSpeed
+
+                    #         # Update velocity
+                    #         robot.velocity = speed_new * new_direction
+                    #         # Update pos 
+                    #         robot.pos = robot.pos + robot.velocity * dt
+
+                    #     else :
+                    #         print("Interception Impossible !")
 
                     ###### Part 2 : Gestion Catch bell #####
                     # Update position/iscatch balle
@@ -253,10 +313,10 @@ def simulate_ball_trajectory(ball, robots_ennemi, robots_allie, time_step_ms=50,
                          time_step_affichage_ms, time_step_ms)
 
 
-simulate_ball_trajectory(ball = ball, 
+simulate_ball_trajectory(ball = ball2, 
                         robots_ennemi=[robot_E1],
                         robots_allie=[robot_A1],
-                        time_step_ms= 50,
+                        time_step_ms= 20,
                         time_step_affichage_ms= 200)
 
 

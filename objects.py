@@ -18,9 +18,23 @@ class ROBOT():
         self.normal= normal
         self.isON = isON
         self.hasBall = False
+
+        self.targetPoint_isupdated = True
         self.targetPoint = None
         self.targetVelocity = None
-        self.targetSpeed = None
+
+        # Trajectory plan
+        self.Accel = []
+        self.Angle = []
+        self.Time = []
+        self.TrajectoyStepPoint = []
+        self.TrajectoyStepVel = []
+
+        self.targetSpeed = None # to suppr
+
+
+
+
 
     def update_direction_vector(self, target_position, dt):
         """
