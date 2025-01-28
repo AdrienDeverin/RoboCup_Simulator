@@ -11,7 +11,7 @@ ball = BALL(pos = np.array([1.0, 1.0]),
             iscatch=False)
 
 ball2 = BALL(pos = np.array([10.0, 12.0]), 
-            velocity= np.array([0,0], dtype=float), 
+            velocity= np.array([1,0], dtype=float), 
             iscatch=False)
 
 robot_A1 = ROBOT(pos = np.array([1.0, 1.0]), 
@@ -68,9 +68,9 @@ def simulate_ball_trajectory(ball, robots_ennemi, robots_allie, time_step_ms=50,
         time += dt
 
         # Update pos ball theorique
-        if (not ball.iscatch) :
-            old_pos_ball = ball.pos
-            ball.update_position(dt) # TODO : prendre en compte tout les obstacle et gérer rebond
+        # if (not ball.iscatch) :
+        #     old_pos_ball = ball.pos
+        #     ball.update_position(dt) # TODO : prendre en compte tout les obstacle et gérer rebond
 
         # Update position robot ennemis 
         for i, robot in enumerate(robots_ennemi) : 
@@ -87,10 +87,15 @@ def simulate_ball_trajectory(ball, robots_ennemi, robots_allie, time_step_ms=50,
                     #####################
                     if (robot.targetPoint_isupdated): 
                         # Determine target point 
-                        direction_to_ball = (ball.pos - np.array(robot.pos))
-                        direction_to_ball /= np.linalg.norm(direction_to_ball)
+                        ball_speed = np.linalg.norm(ball.velocity) 
+                        if (ball_speed > 1e-5):
+                            direction_to_ball = ball.velocity/ball_speed
+                        else :
+                            direction_to_ball = -(ball.pos - np.array(robot.pos))
+                            direction_to_ball /= np.linalg.norm(direction_to_ball)
+
                         epsilon = 0.01
-                        target_point = ball.pos - direction_to_ball*(ROBOTS_RADIUS+BALL_RADIUS-epsilon)
+                        target_point = ball.pos + direction_to_ball*(ROBOTS_RADIUS+BALL_RADIUS-epsilon)
 
                         Accel, Angle, Time, pt_cible, v_cible = Trajectory_Planner(robot.pos, robot.velocity, target_point, ball.velocity, dt)
                         robot.Accel = Accel
@@ -316,7 +321,7 @@ def simulate_ball_trajectory(ball, robots_ennemi, robots_allie, time_step_ms=50,
 simulate_ball_trajectory(ball = ball2, 
                         robots_ennemi=[robot_E1],
                         robots_allie=[robot_A1],
-                        time_step_ms= 20,
+                        time_step_ms= 10,
                         time_step_affichage_ms= 200)
 
 

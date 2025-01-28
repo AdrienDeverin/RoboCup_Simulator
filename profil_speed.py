@@ -17,82 +17,62 @@ def compute_speed_profile(
     Retourne un tuple (node_speeds, profile_points) où :
       - node_speeds = [v(A), v(B), v(C), ...]  (vitesses au points de jonction)
       - profile_points = liste de (x, v) échantillonnant le profil complet le long de la distance.
-
-    Si le problème est impossible à résoudre (contraintes non satisfaites), renvoie "No solution".
     """
-    n = len(segment_lengths)
-    if n == 0:
-        # Aucun segment...
-        if math.isclose(v_init, v_final, rel_tol=1e-9):
-            return ([v_init], [(0.0, v_init)])
-        else:
-            return "No solution"
-
     # --- supprime segment nul ---
     indices_a_conserver = [i for i in range(len(segment_lengths)) if segment_lengths[i] > 0]
     segment_lengths= [segment_lengths[i] for i in indices_a_conserver]
     vmax_list = [vmax_list[i] for i in indices_a_conserver]
 
+    n = len(segment_lengths)
+    if n == 0:
+        # Aucun segment...
+        if math.isclose(v_init, v_final, rel_tol=1e-9):
+            return "No moove"
+        else:
+            return "Error"
+
     # speeds[i] sera la vitesse au point i (0 -> A, 1 -> B, 2 -> C, etc.)
     speeds = [0.0] * (n + 1)
-
+    
     # ---------------------
     # 1) Passage en avant
     # ---------------------
-    speeds[0] = min(v_init, vmax_list[0])  # la vitesse au point A ne dépasse pas la vmax du 1er segment
+    speeds[0] = v_init
     for i in range(1, n+1):
-        dist = segment_lengths[i-1]              # distance du segment i-1
-        vmax_seg = vmax_list[i-1]               # vmax pour ce segment
+        dist = segment_lengths[i-1]             # distance du segment i-1
         v_prev = speeds[i-1]                    # vitesse au point précédent
-        # Vitesse possible via accélération sur dist: v^2 = v_prev^2 + 2*a_max*dist
-        v_possible = math.sqrt(v_prev**2 + 2*a_max*dist)
+        v_possible = math.sqrt(v_prev**2 + 2*a_max*dist) # Vitesse possible via accélération sur dist: v^2 = v_prev^2 + 2*a_max*dist
         # On limite par la vmax du segment
-        speeds[i] = min(v_possible, vmax_seg)
+        speeds[i] = min(v_possible, vmax_list[i-1])
 
     # ---------------------
     # 2) Passage en arrière
     # ---------------------
-    # On force la vitesse du dernier point à min(vitesse calculée, v_final)
-    speeds[n] = min(speeds[n], v_final)
+    if (speeds[n] < v_final):
+        return "No solution : trop lent"
 
+    speeds[n] = v_final
     for i in range(n-1, -1, -1):
         dist = segment_lengths[i]
-        vmax_seg = vmax_list[i]
         v_next = speeds[i+1]
-        # Vitesse possible via décélération sur dist: v^2 = v_next^2 + 2*d_max*dist
-        v_possible_back = math.sqrt(v_next**2 + 2*d_max*dist)
+        v_possible_back = math.sqrt(v_next**2 + 2*d_max*dist) # Vitesse possible via décélération sur dist: v^2 = v_next^2 + 2*d_max*dist
         # On limite par la vitesse déjà calculée et la vmax du segment
-        speeds[i] = min(speeds[i], v_possible_back, vmax_seg)
+        speeds[i] = min(speeds[i], v_possible_back, vmax_list[i])
+
+    if speeds[0] != v_init : # n'a pas assez d'espace pour décélérer jusqu'a v_final (trop rapide)
+        return "No solution : trop rapide"
 
     # ---------------------
     # Vérifications finales
     # ---------------------
-    # - Vitesse init imposée
-    # - Vitesse finale imposée
-    # - Pas de valeurs négatives, etc.
-    if speeds[0] < 0 or math.isnan(speeds[0]):
-        return "No solution (impossible de respecter la vitesse initiale)"
-    # On tolère la situation: speeds[0] peut être < v_init si c'est la vmax du segment.
-    # Si vraiment v_init > vmax_list[0], le min(...) l'a abaissée. 
-    # On peut considérer que c'est un "No solution" si on DOIT absolument commencer à v_init > vmax.
-    if v_init > vmax_list[0] + 1e-9:
-        return "No solution (v_init > vmax du premier segment)"
-
-    if speeds[n] < 0 or math.isnan(speeds[n]):
-        return "No solution (impossible de respecter la vitesse finale)"
-    if speeds[n] + 1e-9 < v_final:
-        # S'il est en-dessous de v_final alors qu'on veut v_final, c'est un problème
-        return "No solution (impossible de maintenir v_final)"
-
     # Vérif aucune vitesse intermédiaire négative
     for v in speeds:
         if v < 0 or math.isnan(v):
-            return "No solution (vitesse négative/impossible détectée)"
+            return "Error"
+
 
     # Les "speeds" au points de jonction sont cohérents, on construit le profil détaillé
-    profile_points = build_detailed_profile(
-        speeds, segment_lengths, vmax_list, a_max, d_max
-    )
+    profile_points = build_detailed_profile(speeds, segment_lengths, vmax_list, a_max, d_max)
 
     return speeds, profile_points
 
@@ -288,103 +268,39 @@ def build_segment_trapezoid(v_start, v_end, L, v_peak, a_max, d_max, x_offset=0.
 
     return points
 
-# if __name__ == "__main__":
-#     # Exemple d'utilisation
-#     segment_lengths = [10.0, 20.0, 15.0]  # longueurs AB, BC, CD
-#     segment_lengths_2 = [10.0, 3.0, 15.0]  # longueurs AB, BC, CD
-#     vmax_list = [5.0, 9.0, 7.0]         # vitesse max sur [A,B], [B,C], [C,D]
-#     v_init = 5.0                         # impose V(A) = 5
-#     v_final = 7.0                        # impose V(D) = 8
-#     a_max = 2.0                          # accélération max
-#     d_max = 2.0                          # décélération max
-
-#     result = compute_speed_profile(segment_lengths, vmax_list, v_init, v_final, a_max, d_max)
-#     result_2 = compute_speed_profile(segment_lengths_2, vmax_list, v_init, v_final, a_max, d_max)
-
-#     if result_2 == "No solution":
-#         print("No solution")
-#     else:
-#         node_speeds, profile_points = result
-#         print("Vitesse aux points de jonction :", node_speeds)
-#         print("Profil (x, v) :")
-#         for (x, v) in profile_points:
-#             print(f" x={x:5.2f} m,  v={v:5.2f} m/s")
-
-#         node_speeds_2, profile_points_2 = result_2
-#         print("Vitesse aux points de jonction :", node_speeds_2)
-#         print("Profil (x, v) :")
-#         for (x, v) in profile_points_2:
-#             print(f" x={x:5.2f} m,  v={v:5.2f} m/s")
-
-#         # --------------------
-#         # Affichage matplotlib
-#         # --------------------
-#         plt.figure()
-
-#         # X_fine = []
-#         # V_fine = []
-#         # x_offset = 0.0  # distance cumulée
-#         # for i in range(len(segment_lengths_2)):
-#         #     L = segment_lengths_2[i]
-#         #     v_start = node_speeds_2[i]
-#         #     v_end = node_speeds_2[i+1]
-
-#         #     # Signe de l'accélération
-#         #     if math.isclose(v_start, v_end, abs_tol=1e-9):
-#         #         # Pas d'accélération
-#         #         a = 0.0
-#         #     elif v_end > v_start:
-#         #         # Accélération
-#         #         a = a_max
-#         #     else:
-#         #         # Décélération
-#         #         a = -d_max
-
-#         #     # Nombre de sous-points pour ce segment
-#         #     N = 20  
-#         #     for j in range(N+1):
-#         #         # j va de 0 à N
-#         #         frac = j / N  # fraction 0..1
-#         #         x_local = L * frac  # distance sur CE segment
-#         #         x_global = x_offset + x_local
-
-#         #         # Formule : v^2 = v_start^2 + 2*a*x_local
-#         #         if a != 0.0:
-#         #             v_calc_sq = v_start**2 + 2*a*x_local
-#         #             if v_calc_sq < 0:
-#         #                 # Cas impossible (si on décélère trop fort), on clip à 0
-#         #                 v_calc_sq = 0
-#         #             v_calc = math.sqrt(v_calc_sq)
-#         #         else:
-#         #             # Pas d'accélération => vitesse constante
-#         #             v_calc = v_start
-
-#         #         X_fine.append(x_global)
-#         #         V_fine.append(v_calc)
-
-#         #     x_offset += L  # On avance sur la distance cumulée
-
-       
-
-#         # # 1) Tracé des points "clés" (ceux calculés par build_detailed_profile)
-#         # X_key = [pt[0] for pt in profile_points_2]
-#         # V_key = [pt[1] for pt in profile_points_2]
-#         # plt.plot(X_key, V_key, 'o--', label="Profil (points clés)")
-
-#         # # 2) Tracé plus fin (subdivisions)
-#         # plt.plot(X_fine, V_fine, '-', label="Profil raffiné (approx)")
 
 
-#         X = [p[0] for p in profile_points_2]
-#         V = [p[1] for p in profile_points_2]
-#         plt.plot(X, V, label="Profil de vitesse 2")
+if __name__ == "__main__":
+    # Exemple d'utilisation
+    segment_lengths = [5.0, 7.0, 5.0]  # longueurs AB, BC, CD
+    vmax_list = [0.0, 4, 7.0]         # vitesse max sur [A,B], [B,C], [C,D]
+    v_init = 0.0                         # impose V(A) = 5
+    v_final = 6.5                        # impose V(D) = 8
+    a_max = 2.0                          # accélération max
+    d_max = 1.0                          # décélération max
 
-#         X = [p[0] for p in profile_points]
-#         V = [p[1] for p in profile_points]
-#         plt.plot(X, V, label="Profil de vitesse 1")
-#         plt.xlabel("Position (m)")
-#         plt.ylabel("Vitesse (m/s)")
-#         plt.title("Profil de vitesse le long du parcours")
-#         plt.grid(True)
-#         plt.legend()
-#         plt.show()
+    result = compute_speed_profile(segment_lengths, vmax_list, v_init, v_final, a_max, d_max)
+  
+    if result == "No solution":
+        print("No solution")
+    else:
+        node_speeds, profile_points = result
+        print("Vitesse aux points de jonction :", node_speeds)
+        print("Profil (x, v) :")
+        for (x, v) in profile_points:
+            print(f" x={x:5.2f} m,  v={v:5.2f} m/s")
+
+
+        # --------------------
+        # Affichage matplotlib
+        # --------------------
+        plt.figure()
+        X = [p[0] for p in profile_points]
+        V = [p[1] for p in profile_points]
+        plt.plot(X, V, label="Profil de vitesse")
+        plt.xlabel("Position (m)")
+        plt.ylabel("Vitesse (m/s)")
+        plt.title("Profil de vitesse le long du parcours")
+        plt.grid(True)
+        plt.legend()
+        plt.show()

@@ -484,17 +484,75 @@ def Trajectory_Planner(pos_start, v_start, pos_end, v_end, dt):
             p1 = np.array(p1)
             p2 = np.array(p2)
       
-            d1 = minimal_arc_length_on_circle(rayon_cercle_robot, pos_start[0], pos_start[1], p1[0], p2[1])
+            d1 = distance_on_circle(pos_start, p1, rayon_cercle_robot)
             v1 = np.linalg.norm(v_start) # v_max premier segment 
             d2 = np.linalg.norm(p2-p1)
             v2 = ROBOTS_MAX_SPEED  # v_max second segment
-            d3 = minimal_arc_length_on_circle(rayon_cercle_target, p2[0], p2[1], pos_end[0], pos_end[1])
+            d3 = distance_on_circle(p2, pos_end, rayon_cercle_target)
             v3 = np.linalg.norm(v_end)  # v_max dernier segment
+            # TODO ajouter des contrainte intermediaire en cas d'humain sur le chemin 
 
-            result = compute_speed_profile([d1,d2], [v1,v2], v1, v3, ACCELERATION_RATE, DECELERATION_RATE) # TODO + error 
-            if result == "No solution":
-                print("No solution") # TODO
-                return 
+            result = compute_speed_profile([d1,d2, d3], [v1, v2, v3], v1, v3, ACCELERATION_RATE, DECELERATION_RATE) 
+            if result == "No moove":
+                Accel.append(0)
+                Angle.append(0)
+                Time.append(np.inf)
+                pt_cible.append(pos_end)
+                v_cible.append(v_end)
+                stop = True
+            elif result == "No solution : trop lent":
+                if (v1 > 1e-5): 
+                    dir = -(pos_end - pos_start)
+                    angle_to_do = angle_between_vectors(v_start, dir)
+                    max_rota = -sens_rotation_robot*ROBOTS_MAX_A/current_speed 
+                    new_angle = min(angle_to_do, max_rota*dt)
+                  
+                    new_dir = rotate_vector(v_start, new_angle)/v1
+                else :
+                    new_angle = 0
+                    new_dir = pos_end - pos_start
+                    new_dir /= np.linalg.norm(new_dir)
+
+                new_speed = min(v1+ ACCELERATION_RATE*dt, v2)
+                # Update start pos
+                v_start = new_speed * new_dir
+                pos_start = pos_start + v_start * dt
+                
+                # Update trajectory plan 
+                v_cible.append(v_start)
+                pt_cible.append(pos_start)
+                Accel.append(min(ACCELERATION_RATE, (v2 - v1)/dt))
+                Angle.append(new_angle/dt)
+                Time.append(dt) 
+
+            elif result == "No solution : trop rapide":  
+                if (v1 > 1e-5): 
+                    dir = -(pos_end - pos_start)
+                    angle_to_do = angle_between_vectors(v_start, dir)
+                    max_rota = -sens_rotation_robot*ROBOTS_MAX_A/current_speed 
+                    new_angle = min(angle_to_do, max_rota*dt)
+                  
+                    new_dir = rotate_vector(v_start, new_angle)/v1
+                else :
+                    new_angle = 0
+                    new_dir = pos_end - pos_start
+                    new_dir /= np.linalg.norm(new_dir)
+
+                new_speed = max(v1- DECELERATION_RATE*dt, 0)
+                # Update start pos
+                v_start = new_speed * new_dir
+                pos_start = pos_start + v_start * dt
+                
+                # Update trajectory plan 
+                v_cible.append(v_start)
+                pt_cible.append(pos_start)
+                Accel.append(max(-DECELERATION_RATE, -v1/dt))
+                Angle.append(new_angle/dt)
+                Time.append(dt) 
+
+            elif result == "Error":
+                print("ERROR in compute speed")
+                raise Exception()
             
             else : 
                 node_speeds, profile_points = result
@@ -550,8 +608,36 @@ def Trajectory_Planner(pos_start, v_start, pos_end, v_end, dt):
                 stop = True
             
         else :
-            # S'éloigner ? TODO
-            return 
+            current_speed = np.linalg.norm(v_start)
+            if (current_speed > 1e-5):
+                dir = -(centre_cercle_target - pos_start)
+                angle_to_do = angle_between_vectors(v_start, dir)
+                max_rota = -sens_rotation_robot*ROBOTS_MAX_A/current_speed # rad.s-1 max
+                new_angle = min(angle_to_do, max_rota*dt)
+
+                new_dir = rotate_vector(v_start, new_angle)/ v_start
+
+            else :
+                new_angle = 0
+                new_dir = centre_cercle_target - pos_start
+                new_dir /= np.linalg.norm(dir)
+
+            if (v_start <= v_end ):
+                new_speed = min(v_start + ACCELERATION_RATE*dt, v_end)
+                Accel.append(min(ACCELERATION_RATE, (v_end - v_start)/dt))
+            else :
+                new_speed = max(v_start - DECELERATION_RATE*dt, v_end)
+                Accel.append(max(-DECELERATION_RATE, (v_end - v_start)/dt))
+
+            # Update start pos
+            v_start = new_speed * new_dir
+            pos_start = pos_start + v_start * dt
+            
+            # Update trajectory plan 
+            v_cible.append(v_start)
+            pt_cible.append(pos_start)
+            Angle.append(new_angle/dt)
+            Time.append(dt) 
 
     return Accel, Angle, Time, pt_cible, v_cible
 

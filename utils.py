@@ -28,7 +28,7 @@ def minimal_arc_length_on_circle(R: float,
                                  x2: float, y2: float) -> float:
     """
     Returns the minimal distance along the circle of radius R
-    (centered at the origin) between points (x1,y1) and (x2,y2).
+    (CENTERED AT THE ORIGINE) between points (x1,y1) and (x2,y2).
     Both points are assumed to lie on the circle: sqrt(x^2 + y^2) = R.
     """
     # 1) Compute the angles (in radians) of each point
@@ -46,6 +46,29 @@ def minimal_arc_length_on_circle(R: float,
     arc_length = R * dtheta
     return arc_length
 
+def distance_on_circle(point1, point2, radius):
+    """
+    Calculate the distance between two points on a circle.
+
+    :param point1: Tuple (x1, y1) representing the first point.
+    :param point2: Tuple (x2, y2) representing the second point.
+    :param radius: Radius of the circle.
+    :return: The distance between the two points on the circle.
+    """
+    x1, y1 = point1
+    x2, y2 = point2
+
+    # Calculate the Euclidean distance between the two points
+    chord_length = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+
+    # Calculate the central angle theta using the chord length formula
+    # chord_length = 2 * r * sin(theta / 2)
+    # Solving for theta: theta = 2 * arcsin(chord_length / (2 * r))
+    theta = 2 * math.asin(chord_length / (2 * radius))
+
+    # Calculate the arc length (distance on the circle)
+    distance = radius * theta
+    return distance
 
 def avancer_sur_cercle(C, R, point_initial, w, d):
     """
