@@ -10,8 +10,8 @@ ball = BALL(pos = np.array([1.0, 1.0]),
             velocity= np.array([initial_speed * np.cos(angle_rad), initial_speed * np.sin(angle_rad)], dtype=float), 
             iscatch=False)
 
-ball2 = BALL(pos = np.array([10.0, 12.0]), 
-            velocity= np.array([1,0], dtype=float), 
+ball2 = BALL(pos = np.array([10.0, 3.0]), 
+            velocity= np.array([0,0], dtype=float), 
             iscatch=False)
 
 robot_A1 = ROBOT(pos = np.array([1.0, 1.0]), 
@@ -251,6 +251,7 @@ def simulate_ball_trajectory(ball, robots_ennemi, robots_allie, time_step_ms=50,
                             # Update ball pos, vel with the robot
                             ball.pos = robot.pos + robot.normal * (ROBOTS_RADIUS + BALL_RADIUS)
                             ball.velocity = robot.velocity
+                            print("Velocity Robot = " + str(np.linalg.norm(robot.velocity))+ " m.s-1")
 
                         # Stop
                         time_last_record = time_step_affichage_ms
@@ -334,27 +335,22 @@ def AffichageTest(pos_robot, pos_target, velocity_robot, velocity_target):
     plt.gca().add_patch(Rectangle((FIELD_DIMENSIONS[0]- GOAL_DEPTH, (FIELD_DIMENSIONS[1] - GOAL_SIZE) / 2), GOAL_DEPTH, GOAL_SIZE, fill=False, edgecolor="white", linewidth=2)) # Goal Ennemie - Right side
 
     centre_cercle_robot, rayon_cercle_robot, sens_rotation_robot, centre_cercle_target, rayon_cercle_target, sens_rotation_target = FoundGoodCircle(pos_robot, pos_target, velocity_robot, velocity_target)
+  
     # Cercle
     plt.gca().add_patch(Circle(centre_cercle_robot, rayon_cercle_robot, color="red", fill=True, zorder=2)) # Ajoute position balle intermédiaire
     plt.gca().add_patch(Circle(centre_cercle_target, rayon_cercle_target, color="red", fill=True, zorder=2)) # Ajoute position balle intermédiaire
     plt.quiver(pos_robot[0], pos_robot[1], velocity_robot[0], velocity_robot[1], angles='xy', scale_units='xy', scale=2, color="purple", width=0.003, zorder= 3)
     plt.quiver(pos_target[0], pos_target[1], velocity_target[0] , velocity_target[1], angles='xy', scale_units='xy', scale=2, color="purple", width=0.003, zorder= 3)
 
-    if (sens_rotation_robot < 0 and sens_rotation_target > 0):
-        p1, p2 = tangentes_inter_1(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target)
-      
-    elif (sens_rotation_robot > 0 and sens_rotation_target < 0):  
-        p1, p2 = tangentes_inter_2(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target)
-       
-    elif (sens_rotation_robot > 0 and sens_rotation_target > 0):  
-        p1, p2 = tangentes_ext_1(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target)
-      
-    elif (sens_rotation_robot < 0 and sens_rotation_target < 0):  
-        p1, p2 = tangentes_ext_2(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target)
-       
+    if (sens_rotation_robot == sens_rotation_target): 
+        p1, p2 = find_tangent_ext(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target, sens_rotation_robot, pos_robot)
+    else : 
+        p1, p2 = find_tangent_inter(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target, sens_rotation_robot, pos_robot)
+        
     if (p1 != 0):
         plt.plot([p1[0], p2[0]], [p1[1], p2[1]], linestyle="--", color="purple", zorder= 3)
-
+        print(p1)
+        print(p2)
     else :
         # TODO : trajectoire suivit classique 
         a = 0
@@ -368,8 +364,8 @@ def AffichageTest(pos_robot, pos_target, velocity_robot, velocity_target):
     plt.grid()
     plt.show()
 
-# AffichageTest(pos_robot= np.array([3.5, 2.0]), 
-#               pos_target=np.array([5.0, 7.0]),
-#               velocity_robot=np.array([0.0, 0.0]),
-#               velocity_target=np.array([-1.0, 0.0]))
+# AffichageTest(pos_robot= np.array([10, 2.0]), 
+#               pos_target=np.array([10.0, 12.0]),
+#               velocity_robot=np.array([-3.5, 0.0]),
+#               velocity_target=np.array([0.0, 0.0]))
 

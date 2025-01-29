@@ -55,6 +55,8 @@ def distance_on_circle(point1, point2, radius):
     :param radius: Radius of the circle.
     :return: The distance between the two points on the circle.
     """
+    if (radius == 0):
+        return 0
     x1, y1 = point1
     x2, y2 = point2
 

@@ -82,145 +82,75 @@ def FoundGoodCircle(pos_robot, pos_target, velocity_robot, velocity_target):
     return (centre_cercle_robot,  rayon_cercle_robot,  final_sens_robot,
             centre_cercle_target, rayon_cercle_target, final_sens_target)
 
-def tangentes_ext_1(cx1, cy1, r1, cx2, cy2, r2):
-    """
-    Calcule l'une des tangentes externes entre deux cercles.
-    Retourne les deux éléments, (x1,y1),(x2,y2),  points de contact sur cercle1 et cercle2.
-    """
-    dx = cx2 - cx1
-    dy = cy2 - cy1
-    d2 = dx*dx + dy*dy
-    d = math.sqrt(d2)
-
-    # Vérification d'existence : d >= |r1 - r2|
+def find_tangent_ext(cx1, cy1, r1, cx2, cy2, r2, rotation, pt_start):  # rotation_robot = rotation_target = rotation 
+    d = np.hypot(cx2 - cx1, cy2 - cy1)  # Distance entre les centres
     if d < abs(r1 - r2):
-        return None,None # pas de tangentes externes réelles
+        return None, None # Impossible 
+    if d == 0 : 
+        return (pt_start, pt_start)
 
-    # Angle de la ligne des centres
-    beta = math.atan2(dy, dx)
-    # alpha = arccos(|r1 - r2| / d)
-    alpha = math.acos(abs(r1 - r2) / d)
+    alpha = np.arccos((r1 - r2) / d)
+    theta = np.arctan2(cy2 - cy1, cx2 - cx1)
 
-    # On définit gamma+
-    gp = beta + alpha
-    delta = math.pi/2
+    t1_x = cx1 + r1 * np.cos(theta - rotation * alpha)
+    t1_y = cy1 + r1 * np.sin(theta - rotation * alpha)
+    
+    t2_x = cx2 + r2 * np.cos(theta - rotation * alpha)
+    t2_y = cy2 + r2 * np.sin(theta - rotation * alpha)
+    return ((t1_x, t1_y), (t2_x, t2_y))
 
-    # Points de contact : formules (externe)
-    # Cercle 1
-    x1p = cx1 - r1 * math.sin(gp+ delta)
-    y1p = cy1 + r1 * math.cos(gp+ delta)
+def find_tangent_inter(cx1, cy1, r1, cx2, cy2, r2, rotation, pt_start): # rotation_robot = -rotation_target = rotation 
+    d = np.hypot(cx2 - cx1, cy2 - cy1)  # Distance entre les centres
+    if d < abs(r1 + r2):
+        return None, None # Impossible 
+    if d == 0 : 
+        return (pt_start, pt_start)
+    
+    alpha = np.arccos((r1 + r2) / d)
+    theta = np.arctan2(cy2 - cy1, cx2 - cx1)
+    
+    t1_x = cx1 + r1 * np.cos(theta - rotation  * alpha)
+    t1_y = cy1 + r1 * np.sin(theta - rotation  * alpha)
+    
+    t2_x = cx2 - r2 * np.cos(theta - rotation  * alpha)
+    t2_y = cy2 - r2 * np.sin(theta - rotation  * alpha)
+    
+    return ((t1_x, t1_y), (t2_x, t2_y))
 
-    # Cercle 2
-    x2p = cx2 - r2 * math.sin(gp+ delta)
-    y2p = cy2 + r2 * math.cos(gp+ delta)
-
-    tang_plus = ((x1p, y1p), (x2p, y2p))
-
-    return tang_plus
-
-def tangentes_ext_2(cx1, cy1, r1, cx2, cy2, r2):
+def find_tangent_points(x1, y1, r1, x2, y2, r2):
     """
-    Calcule l'autre tangentes externes entre deux cercles.
-    Retourne les deux éléments, (x1,y1),(x2,y2),  points de contact sur cercle1 et cercle2.
+    Trouve les points de contact des tangentes communes entre deux cercles.
+    
+    Paramètres:
+    x1, y1, r1 : coordonnées et rayon du premier cercle
+    x2, y2, r2 : coordonnées et rayon du second cercle
+    
+    Retourne:
+    Liste des points de contact sous forme [(x_t1, y_t1), (x_t2, y_t2), ...]
     """
-
-    dx = cx2 - cx1
-    dy = cy2 - cy1
-    d2 = dx*dx + dy*dy
-    d = math.sqrt(d2)
-
-    # Vérification d'existence : d >= |r1 - r2|
+    d = np.hypot(x2 - x1, y2 - y1)  # Distance entre les centres
     if d < abs(r1 - r2):
-        return None,None  # pas de tangentes externes réelles
+        raise ValueError("Les cercles sont imbriqués, pas de tangentes communes")
+    if d == 0 and r1 == r2:
+        raise ValueError("Les cercles sont identiques, infinité de tangentes")
+    
+    tangents = []
+    
+    for sign1 in [+1, -1]:  # Pour tangentes externes et internes
+        for sign2 in [+1, -1]:
+            alpha = np.arccos((r1 - sign1 * r2) / d)
+            theta = np.arctan2(y2 - y1, x2 - x1)
+            
+            t1_x = x1 + r1 * np.cos(theta + sign2 * alpha)
+            t1_y = y1 + r1 * np.sin(theta + sign2 * alpha)
+            
+            t2_x = x2 + sign1 * r2 * np.cos(theta + sign2 * alpha)
+            t2_y = y2 + sign1 * r2 * np.sin(theta + sign2 * alpha)
+            
+            tangents.append(((t1_x, t1_y), (t2_x, t2_y)))
+    
+    return tangents
 
-    # Angle de la ligne des centres
-    beta = math.atan2(dy, dx)
-    # alpha = arccos(|r1 - r2| / d)
-    alpha = math.acos(abs(r1 - r2) / d)
-
-    # On définit gamma-
-    gm = beta - alpha
-    delta = math.pi/2
-
-    # Points de contact : formules (externe)
-    # Cercle 1
-    x1m = cx1 - r1 * math.sin(gm+ delta)
-    y1m = cy1 + r1 * math.cos(gm+ delta)
-
-    # Cercle 2
-    x2m = cx2 - r2 * math.sin(gm+ delta)
-    y2m = cy2 + r2 * math.cos(gm+ delta)
-
-    tang_minus = ((x1m, y1m), (x2m, y2m))
-
-    return tang_minus
-
-def tangentes_inter_1(cx1, cy1, r1, cx2, cy2, r2):
-    """
-    Calcule l'une des tangentes internes (ou 'croisées') entre deux cercles.
-    """
-    dx = cx2 - cx1
-    dy = cy2 - cy1
-    d2 = dx*dx + dy*dy
-    d = math.sqrt(d2)
-
-    # Vérification d'existence : d >= (r1 + r2)
-    if d < (r1 + r2):
-        return None,None  # pas de tangentes internes réelles
-
-    # Angle de la ligne des centres
-    beta = math.atan2(dy, dx)
-    # alpha = arccos((r1 + r2) / d)
-    alpha = math.acos((r1 + r2) / d)
-
-    # On définit gamma+ 
-    gp = beta + alpha
-    delta = math.pi/2
-    # Points de contact : formules (interne)
-    # Cercle 1
-    x1p = cx1 - r1 * math.sin(gp- delta)
-    y1p = cy1 + r1 * math.cos(gp- delta)
-
-    # Cercle 2 : "r2" se comporte comme s'il était négatif
-    x2p = cx2 + r2 * math.sin(gp- delta)   # + au lieu de - 
-    y2p = cy2 - r2 * math.cos(gp- delta)   # - au lieu de +
-
-    tang_plus = ((x1p, y1p), (x2p, y2p))
-    return tang_plus
-
-def tangentes_inter_2(cx1, cy1, r1, cx2, cy2, r2):
-    """
-    Calcule l'autre tangentes internes (ou 'croisées') entre deux cercles.
-    """
-    dx = cx2 - cx1
-    dy = cy2 - cy1
-    d2 = dx*dx + dy*dy
-    d = math.sqrt(d2)
-
-    # Vérification d'existence : d >= (r1 + r2)
-    if d < (r1 + r2):
-        return None,None # pas de tangentes internes réelles
-
-    # Angle de la ligne des centres
-    beta = math.atan2(dy, dx)
-    # alpha = arccos((r1 + r2) / d)
-    alpha = math.acos((r1 + r2) / d)
-
-    # On définit gamma-
-    gm = beta - alpha
-    delta = math.pi/2
-    # Points de contact : formules (interne)
-    # Cercle 1
-    x1m = cx1 - r1 * math.sin(gm- delta)
-    y1m = cy1 + r1 * math.cos(gm- delta)
-
-    # Cercle 2 : "r2" se comporte comme s'il était négatif
-    x2m = cx2 + r2 * math.sin(gm- delta)
-    y2m = cy2 - r2 * math.cos(gm- delta)
-
-    tang_minus = ((x1m, y1m), (x2m, y2m))
-
-    return  tang_minus
 
 def FoundWayDistance(pos_start, pos_p1, rayon_1, pos_p2, pos_end, rayon_2):
     distance = 0
@@ -470,15 +400,11 @@ def Trajectory_Planner(pos_start, v_start, pos_end, v_end, dt):
     while not stop:
         centre_cercle_robot, rayon_cercle_robot, sens_rotation_robot, centre_cercle_target, rayon_cercle_target, sens_rotation_target = FoundGoodCircle(pos_start, pos_end, v_start, v_end)
         #TODO: Attention vérifier que l'on ne sort pas du terrain lors du choix.
-        if (sens_rotation_robot < 0 and sens_rotation_target > 0):
-            p1, p2 = tangentes_inter_1(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target)
-        elif (sens_rotation_robot > 0 and sens_rotation_target < 0):  
-            p1, p2 = tangentes_inter_2(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target)
-        elif (sens_rotation_robot > 0 and sens_rotation_target > 0):  
-            p1, p2 = tangentes_ext_1(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target)
-        elif (sens_rotation_robot < 0 and sens_rotation_target < 0):  
-            p1, p2 = tangentes_ext_2(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target)
-        
+        if (sens_rotation_robot == sens_rotation_target): 
+            p1, p2 = find_tangent_ext(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target, sens_rotation_robot, pos_start)
+        else : 
+            p1, p2 = find_tangent_inter(centre_cercle_robot[0], centre_cercle_robot[1], rayon_cercle_robot, centre_cercle_target[0], centre_cercle_target[1], rayon_cercle_target, sens_rotation_robot, pos_start)
+         
         if (p1 != None) :
             # Solution de chemin exist 
             p1 = np.array(p1)
@@ -609,25 +535,26 @@ def Trajectory_Planner(pos_start, v_start, pos_end, v_end, dt):
             
         else :
             current_speed = np.linalg.norm(v_start)
+            end_speed = np.linalg.norm(v_end)
             if (current_speed > 1e-5):
                 dir = -(centre_cercle_target - pos_start)
                 angle_to_do = angle_between_vectors(v_start, dir)
                 max_rota = -sens_rotation_robot*ROBOTS_MAX_A/current_speed # rad.s-1 max
                 new_angle = min(angle_to_do, max_rota*dt)
 
-                new_dir = rotate_vector(v_start, new_angle)/ v_start
+                new_dir = rotate_vector(v_start, new_angle)/ current_speed
 
             else :
                 new_angle = 0
                 new_dir = centre_cercle_target - pos_start
                 new_dir /= np.linalg.norm(dir)
 
-            if (v_start <= v_end ):
-                new_speed = min(v_start + ACCELERATION_RATE*dt, v_end)
-                Accel.append(min(ACCELERATION_RATE, (v_end - v_start)/dt))
+            if (current_speed <= end_speed ):
+                new_speed = min(current_speed + ACCELERATION_RATE*dt, end_speed)
+                Accel.append(min(ACCELERATION_RATE, (end_speed - current_speed)/dt))
             else :
-                new_speed = max(v_start - DECELERATION_RATE*dt, v_end)
-                Accel.append(max(-DECELERATION_RATE, (v_end - v_start)/dt))
+                new_speed = max(current_speed - DECELERATION_RATE*dt, end_speed)
+                Accel.append(max(-DECELERATION_RATE, (end_speed - current_speed)/dt))
 
             # Update start pos
             v_start = new_speed * new_dir
@@ -670,8 +597,8 @@ def tangentes_externes(cx1, cy1, r1, cx2, cy2, r2):
 
     # Points de contact : formules (externe)
     # Cercle 1
-    x1p = cx1 - r1 * math.sin(gp+ delta)
-    y1p = cy1 + r1 * math.cos(gp+ delta)
+    x1p = cx1 - r1 * math.sin(gp)
+    y1p = cy1 + r1 * math.cos(gp)
     x1m = cx1 - r1 * math.sin(gm+ delta)
     y1m = cy1 + r1 * math.cos(gm+ delta)
 
