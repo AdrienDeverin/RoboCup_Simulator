@@ -107,14 +107,14 @@ def simulate_ball_trajectory(ball, robots_ennemi, robots_allie, time_step_ms=50,
                         robot.targetVelocity = ball.velocity
                         robot.targetPoint_isupdated = False 
 
-                    if (len(robot.Time)> 0):
+                    if (len(robot.Time)> 0): 
                         # Avancer selon trajectoire 
                         # TODO : AJOUTER esquiver ennemis ou limiter distance contacte et limite terrain (prendre liste de tous les robots sauf celui ci)
                         
                         if (Time[0] > dt or len(Time) == 1):
                             speed = np.linalg.norm(robot.velocity)
                             if (speed > 1e-5): 
-                                new_dir = rotate_vector(robot.velocity, robot.Angle[0]*dt)/speed
+                                new_dir = rotate_vector(robot.velocity, robot.Angle[0]*dt)/speed # TODO : angle * speed / original speed *dt
                             else :
                                 new_dir = robot.TrajectoryStepPoint[0] - robot.pos
                                 new_dir /= np.linalg.norm(new_dir)
